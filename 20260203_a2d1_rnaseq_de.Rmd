@@ -359,7 +359,9 @@ go_bp <- enrichGO(
 head(go_bp)
 
 library(enrichplot)
-enrichplot::dotplot(go_bp, showCategory=10)
+png("./plots/WTvKO_GO_BP.png", width=2000, height=2000, res=300)
+  enrichplot::dotplot(go_bp, showCategory=10)
+dev.off()
 
 
 #save go output
@@ -391,7 +393,9 @@ go_mf <- enrichGO(
 head(go_mf)
 
 library(enrichplot)
-enrichplot::dotplot(go_mf, showCategory=10)
+png("./plots/WTvKO_GO_MF.png", width=2000, height=2000, res=300)
+  enrichplot::dotplot(go_mf, showCategory=10)
+dev.off()
 
 
 #save go output
