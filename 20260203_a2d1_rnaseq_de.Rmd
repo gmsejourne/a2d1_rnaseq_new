@@ -177,7 +177,23 @@ EnhancedVolcano(res,
     FCcutoff = 0.4,
     ylim = c(0, 20), xlim = c(-1,1), 
     drawConnectors = TRUE)
+
+ggsave("./plots/volcano_untransformed_zoom.png")
 ```
+```{r}
+# plot volcano for shrunken results (emphasize low count)
+EnhancedVolcano(res_shrunk,
+    lab = rownames(res_shrunk),
+    x = 'log2FoldChange',
+    y = 'padj',
+    pCutoff = 0.05, 
+    FCcutoff = 0.4,
+    ylim = c(0, 20), xlim = c(-1,1), 
+    drawConnectors = TRUE)
+
+ggsave("./plots/volcano_shrunken.png")
+```
+
 
 ```{r}
 resultsNames(dds)
@@ -187,6 +203,7 @@ resLFC <- lfcShrink(dds, coef="Genotype_KO_vs_WT", type="apeglm")
 # noticed any differences to the values in lfcSE compared to res ?
 resLFC
 ```
+
 ```{r filter results w.r.t. p-value and check summary statistics}
 resOrdered <- res[order(res$pvalue),]
 summary(res)
@@ -197,8 +214,14 @@ sum(res05$padj < 0.05, na.rm=TRUE)
 ```
 
 ```{r}
-plotMA(res)
-plotMA(resLFC)
+png("./plots/MA_plot_untransformed.png", width=2000, height=2000, res=300)
+  plotMA(res)
+dev.off()
+
+png("./plots/MA_plot_shrunken.png", width=2000, height=2000, res=300)
+  plotMA(resLFC)
+dev.off()
+
 ```
 
 ```{r}
@@ -264,6 +287,7 @@ pheatmap(sampleDistMatrix,
 ```
 ```{r}
 plotPCA(vsd, intgroup=c("Genotype", "Sex"))
+ggsave("./plots/pca_variance_stabilized.png")
 ```
 
 
@@ -277,11 +301,11 @@ plot_pca_scatters(rld, n_PCs = 5, color_by = "Genotype", shape_by = "Sex")
 #plot additional PCs using ggplot2
 plot_pca(rld, PC_x = 1, PC_y = 2, color_by = "Genotype", shape_by = "Sex", scale_feats = FALSE, point_rel_size = 4) 
 plot_pca
-ggsave(filename = "./plots/pca_PC1_PC2.png", height = 6, width = 6)
+ggsave(filename = "./plots/pca_log_normalized_PC1_PC2.png", height = 6, width = 6)
 
 plot_pca(rld, PC_x = 1, PC_y = 3, color_by = "Genotype", shape_by = "Sex", scale_feats = FALSE, point_rel_size = 4) 
 plot_pca
-ggsave(filename = "./plots/pca_PC1_PC3.png", height = 6, width = 6)
+ggsave(filename = "./plots/pca_log_normalized_PC1_PC3.png", height = 6, width = 6)
 
 ```
 
