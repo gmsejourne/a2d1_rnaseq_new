@@ -1,0 +1,381 @@
+---
+title: "20260203_a2d1_rnaseq_de"
+author: "G Sejourne"
+date: "2026-02-03"
+output: html_document
+---
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Install CRAN packages
+installifnot <- function(pckgName){
+  if (!(require(pckgName, character.only = TRUE))) {
+    install.packages(pckgName, dep = TRUE)
+    require(pckgName, character.only = TRUE)
+  }
+}
+
+cran_pkgs <- c("BiocManager", "remotes", "tidyverse", "plotly", "gplots", "RNAseqQC")
+
+for (i in 1:length(cran_pkgs)){
+  installifnot(cran_pkgs[i])
+}
+
+# Install Bioconductor packages
+installBiocifnot <- function(pckgName){
+  if (!(require(pckgName, character.only = TRUE))) {
+    BiocManager::install(pckgName)
+    require(pckgName, character.only = TRUE)
+  }
+}
+
+bioc_pkgs <- c("DESeq2", 
+               #"UCLouvain-CBIO/rWSBIM2122", 
+               "biomaRt", "org.Mm.eg.db", "clusterProfiler", "enrichplot", "VennDetail", "EnhancedVolcano", "apeglm", "VennDiagram", "pheatmap", "viridis", "DEGreport")
+
+for (i in 1:length(bioc_pkgs)){
+  installBiocifnot(bioc_pkgs[i])
+}
+
+library(rWSBIM2122)
+library(DESeq2)
+library(tidyverse)
+library(clusterProfiler)
+library(biomaRt)
+library(org.Mm.eg.db)
+library(enrichplot)
+library(fgsea)
+library(msigdbr)
+library(VennDetail)
+library(VennDiagram)
+library(EnhancedVolcano)
+library(apeglm)
+library(readxl)
+library(gplots)
+library(pheatmap)
+library(viridis)
+library(RNAseqQC)
+library(dplyr)
+library(ggplot2)
+library(purrr)
+library(tidyr)
+library(tibble)
+library(magrittr)
+library(DEGreport)
+```
+
+# Performing RNA-seq analysis using the DESeq2 package - Enrichment Analaysis
+
+For this walk-through we will be using the same example (and much of the same code!) as in this chapter - 
+https://uclouvain-cbio.github.io/WSBIM2122/sec-gsea.html
+
+Refer to these guides for more information on how to use -
+clusterProfiler - https://yulab-smu.top/biomedical-knowledge-mining-book/enrichment-overview.html
+fgsea - http://bioconductor.org/packages/release/bioc/vignettes/fgsea/inst/doc/fgsea-tutorial.html
+msigdb gene sets - https://data.broadinstitute.org/gsea-msigdb/msigdb/release/
+
+Wonderful blogpost on using the fgsea package - https://stephenturner.github.io/deseq-to-fgsea/
+
+```{r load counts for a2d1-KO vs HET vs WT}
+counts_dir <- "E:/DATA_3/collabs/a2d1/p21_bulkRNAseq/counts"
+
+counts_list_WT <- 
+  intersect(list.files(counts_dir, pattern='WT'), 
+                         list.files(counts_dir, pattern = 'txt$')
+)
+counts_list_KO <- 
+  intersect(list.files(counts_dir, pattern='KO'), 
+                         list.files(counts_dir, pattern = 'txt$')
+)
+counts_list_HET <- 
+  intersect(list.files(counts_dir, pattern='HET'), 
+                         list.files(counts_dir, pattern = 'txt$')
+)
+
+#select just WT and KO for now
+counts_list <- c(counts_list_WT, counts_list_HET, counts_list_KO)
+
+#reads in each counts file
+counts_in <- lapply(paste(counts_dir, counts_list, sep = "/"), read.table, header = TRUE)
+#subset just the geneids and counts from each file so that each row is a gene and each column is the counts for a sample
+
+counts_combined <- data.frame(counts_in[[1]][,7])
+for (i in seq.int(2,length(counts_in))){
+  #print(i)
+  current_column <- counts_in[[i]][,7]
+  counts_combined[(i)] <- current_column
+}
+#label rows with gene names
+rows <- counts_in[[1]][,1]
+rownames(counts_combined) = rows
+
+#label columns with names of input files
+cols <- counts_list
+colnames(counts_combined) = cols
+
+```
+
+
+```{r load counts for a2d1-WT, HET, and KO, and add metadata}
+#group samples by experimental groups
+#Genotype: WT HET KO
+#Sex: M F 
+#Litter: 
+genotype <- c(1:length(counts_list))
+sex <- c(1:length(counts_list))
+genotype_sex <- c(1:length(counts_list))
+litter <- c(1:length(counts_list))
+
+for (i in 1:length(counts_list)){
+    genotype[i] <- strsplit(counts_list[i], "_")[[1]][3]
+    sex[i] <- str_sub(strsplit(counts_list[i], "_")[[1]][2], nchar(strsplit(counts_list[i], "_")[[1]][2]), nchar(strsplit(counts_list[i], "_")[[1]][2]))
+    litter[i] <- strsplit(counts_list[i], "_")[[1]][1]
+    genotype_sex[i] <- paste(genotype[i], sex[i])
+}
+
+#make coldata for DESeq2
+coldata <- data.frame(cols)
+coldata$Genotype <- genotype
+coldata$Genotype <- factor(coldata$Genotype, levels = c("WT", "HET", "KO"))
+coldata$Sex <- sex
+coldata$Sex <- factor(coldata$Sex, levels = c("M", "F"))
+coldata$Litter <- litter
+coldata$Litter <- factor(coldata$Litter)
+
+# check that rownames and column names are in the same order
+as.tibble((counts_combined))
+coldata
+```
+```{r}
+# Construct a DESeqDataSet object
+dds <- DESeqDataSetFromMatrix(countData = counts_combined,
+                              colData = coldata,
+                              design = ~ Genotype)
+
+dds$Genotype <- relevel(dds$Genotype, ref = "WT")
+```
+
+
+```{r make results table}
+# Run DESeq2
+dds <- DESeq(dds)
+
+res <- results(dds,
+               contrast = c("Genotype", "KO", "WT")) # we do this so that `WT` becomes the group we're comparing to
+res
+```
+
+
+```{r plot initial volcano}
+
+EnhancedVolcano(res,
+    lab = rownames(res),
+    x = 'log2FoldChange',
+    y = 'padj',
+    pCutoff = 0.05, 
+    FCcutoff = 0.4,
+    ylim = c(0, 20), xlim = c(-1,1), 
+    drawConnectors = TRUE)
+```
+
+```{r}
+resultsNames(dds)
+## [1] "Intercept"          "Genotype_HET_vs_WT" "Genotype_KO_vs_WT" 
+
+resLFC <- lfcShrink(dds, coef="Genotype_KO_vs_WT", type="apeglm")
+# noticed any differences to the values in lfcSE compared to res ?
+resLFC
+```
+```{r filter results w.r.t. p-value and check summary statistics}
+resOrdered <- res[order(res$pvalue),]
+summary(res)
+
+res05 <- results(dds, alpha=0.05)
+summary(res05)
+sum(res05$padj < 0.05, na.rm=TRUE)
+```
+
+```{r}
+plotMA(res)
+plotMA(resLFC)
+```
+
+```{r}
+plotCounts(dds, gene=which.min(res$padj), intgroup="Genotype")
+
+plotCounts(dds, gene=which.min(res$padj), intgroup="Genotype", returnData = TRUE)
+```
+
+```{r}
+write.csv(as.data.frame(resOrdered), 
+          file="a2d1_KOvsWT_results.csv")
+```
+
+```{r}
+resSig <- subset(resOrdered, padj < 0.05)
+resSig
+write.csv(as.data.frame(resSig), 
+          file="a2d1_KOvsWT_results_sig.csv")
+```
+
+
+```{r data transformations}
+# variance stabilizing transformation (unblind to account for known group differences, ideal for PCA/clustering)
+vsd <- vst(dds, blind=FALSE)
+head(assay(vsd), 3)
+
+# make heatmaps of top DEGs normalized counts with blind and unblind vst
+select <- rownames(dds[rownames(dds) %in% rownames(head(resSig,20)),])
+
+df <- as.data.frame(colData(dds)[,c("Genotype","Sex")])
+
+# Calculate row means and reorder matrix based on row means (ascending)
+mat <- assay(vsd)[select,]
+row_means <- rowMeans(mat)
+mat_ordered <- mat[order(row_means), ]
+
+#unblind to genotype/sex/litter
+pheatmap(mat_ordered, cluster_rows=FALSE, show_rownames=TRUE,
+         cluster_cols=TRUE, annotation_col=df)
+```
+
+
+```{r other data transformations}
+rld <- rlog(dds, blind=FALSE)
+ntd <- normTransform(dds)
+
+saveRDS(dds, file = "deseq_results_a2d1.rds")
+```
+
+```{r distance clustering of samples using transformed data}
+library(RColorBrewer)
+
+sampleDists <- dist(t(assay(vsd)))
+
+sampleDistMatrix <- as.matrix(sampleDists)
+rownames(sampleDistMatrix) <- paste(vsd$Genotype, vsd$Sex, sep="-")
+colnames(sampleDistMatrix) <- NULL
+colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows=sampleDists,
+         clustering_distance_cols=sampleDists,
+         col=colors)
+```
+```{r}
+plotPCA(vsd, intgroup=c("Genotype", "Sex"))
+```
+
+
+```{r compare to PCA of log normalized data without variance stabilizing transformation}
+# first plot PC1 and 2 in the same way using plotPCA
+plotPCA(rld, intgroup=c("Genotype", "Sex"))
+
+# extract additional principal components 
+plot_pca_scatters(rld, n_PCs = 5, color_by = "Genotype", shape_by = "Sex")
+
+#plot additional PCs using ggplot2
+plot_pca(rld, PC_x = 1, PC_y = 2, color_by = "Genotype", shape_by = "Sex", scale_feats = FALSE, point_rel_size = 4) 
+plot_pca
+ggsave(filename = "./plots/pca_PC1_PC2.png", height = 6, width = 6)
+
+plot_pca(rld, PC_x = 1, PC_y = 3, color_by = "Genotype", shape_by = "Sex", scale_feats = FALSE, point_rel_size = 4) 
+plot_pca
+ggsave(filename = "./plots/pca_PC1_PC3.png", height = 6, width = 6)
+
+```
+
+```{r}
+library(DEGreport)
+degs <- degComps(dds, combs = "Genotype",
+                 contrast = list( c("Genotype", "WT", "KO") ))
+names(degs)
+## [1] "Genotype_HET_vs_WT" "Genotype_KO_vs_WT"  "Genotype_WT_vs_KO" 
+
+# get raw (not lfc shrunken) results from KOvWT comparison ([[2]]) as dataframe
+deg(degs[[2]], "raw", "tibble")
+
+# get genes with KOvWT log2FC > 0.3219 (FC > 1.25) and FDR < 0.05
+deg.df <- significants(degs, fc = 0.3219, fdr = 0.05, full = TRUE)
+deg.df
+```
+
+```{r plot top genes ordered by lowest p value}
+degPlot(dds = dds, res = res, n = 10, xs = "Genotype")
+```
+
+
+
+```{r GO biological process}
+sig_up <- subset(resSig, log2FoldChange > 0)
+sig_down <- subset(resSig, log2FoldChange < 0)
+
+sig_up_genes <- rownames(sig_up)
+sig_down_genes <- rownames(sig_down)
+sig_diff_genes <- c(sig_up_genes, sig_down_genes)
+
+# Map SYMBOL → ENTREZ
+mapped <- AnnotationDbi::select(
+  org.Mm.eg.db,
+  keys = sig_diff_genes,
+  keytype = "SYMBOL",
+  columns = "ENTREZID"
+)
+
+mapped <- mapped[!is.na(mapped$ENTREZID), ]
+
+# Run GO enrichment using ENTREZ
+go_bp <- enrichGO(
+  gene = unique(mapped$ENTREZID),
+  OrgDb = org.Mm.eg.db,
+  keyType = "ENTREZID",
+  ont = "BP",
+  readable = TRUE
+)
+head(go_bp)
+
+library(enrichplot)
+enrichplot::dotplot(go_bp, showCategory=10)
+
+
+#save go output
+
+write.csv(go_bp, file = "a2d1_genes_diff_GOBP.csv")
+```
+
+
+```{r GO molecular function}
+
+# Map SYMBOL → ENTREZ
+mapped <- AnnotationDbi::select(
+  org.Mm.eg.db,
+  keys = sig_diff_genes,
+  keytype = "SYMBOL",
+  columns = "ENTREZID"
+)
+
+mapped <- mapped[!is.na(mapped$ENTREZID), ]
+
+# Run GO enrichment using ENTREZ
+go_mf <- enrichGO(
+  gene = unique(mapped$ENTREZID),
+  OrgDb = org.Mm.eg.db,
+  keyType = "ENTREZID",
+  ont = "MF",
+  readable = TRUE
+)
+head(go_mf)
+
+library(enrichplot)
+enrichplot::dotplot(go_mf, showCategory=10)
+
+
+#save go output
+
+write.csv(go_mf, file = "a2d1_genes_diff_GOMF.csv")
+```
+
+```{r print session info}
+sessionInfo()
+
+```
