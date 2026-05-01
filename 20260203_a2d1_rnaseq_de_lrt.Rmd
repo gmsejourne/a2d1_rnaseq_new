@@ -1,0 +1,262 @@
+---
+title: "20260203_a2d1_rnaseq_de"
+author: "G Sejourne"
+date: "2026-02-03"
+output: html_document
+---
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Install CRAN packages
+installifnot <- function(pckgName){
+  if (!(require(pckgName, character.only = TRUE))) {
+    install.packages(pckgName, dep = TRUE)
+    require(pckgName, character.only = TRUE)
+  }
+}
+
+cran_pkgs <- c("BiocManager", "remotes", "tidyverse", "plotly", "gplots", "RNAseqQC")
+
+for (i in 1:length(cran_pkgs)){
+  installifnot(cran_pkgs[i])
+}
+
+# Install Bioconductor packages
+installBiocifnot <- function(pckgName){
+  if (!(require(pckgName, character.only = TRUE))) {
+    BiocManager::install(pckgName)
+    require(pckgName, character.only = TRUE)
+  }
+}
+
+bioc_pkgs <- c("DESeq2", 
+               #"UCLouvain-CBIO/rWSBIM2122", 
+               "biomaRt", "org.Mm.eg.db", "clusterProfiler", "enrichplot", "VennDetail", "EnhancedVolcano", "apeglm", "VennDiagram", "pheatmap", "viridis", "DEGreport")
+
+for (i in 1:length(bioc_pkgs)){
+  installBiocifnot(bioc_pkgs[i])
+}
+
+library(rWSBIM2122)
+library(DESeq2)
+library(tidyverse)
+library(clusterProfiler)
+library(biomaRt)
+library(org.Mm.eg.db)
+library(enrichplot)
+library(fgsea)
+library(msigdbr)
+library(VennDetail)
+library(VennDiagram)
+library(EnhancedVolcano)
+library(apeglm)
+library(readxl)
+library(gplots)
+library(pheatmap)
+library(viridis)
+library(RNAseqQC)
+library(dplyr)
+library(ggplot2)
+library(purrr)
+library(tidyr)
+library(tibble)
+library(magrittr)
+library(DEGreport)
+```
+
+# Performing RNA-seq analysis using the DESeq2 package - Enrichment Analaysis
+
+Mostly based on this DESeq2 vignette: https://introtogenomics.readthedocs.io/en/latest/2021.11.11.DeseqTutorial.html
+
+As well as this forum about 3-group comparisons using DESeq2:
+https://www.biostars.org/p/115685/
+
+Comparing WT and KO to HET
+
+```{r load counts for a2d1-KO vs HET vs WT}
+counts_dir <- "E:/DATA_3/collabs/a2d1/p21_bulkRNAseq/counts"
+
+counts_list_WT <- 
+  intersect(list.files(counts_dir, pattern='WT'), 
+                         list.files(counts_dir, pattern = 'txt$')
+)
+counts_list_KO <- 
+  intersect(list.files(counts_dir, pattern='KO'), 
+                         list.files(counts_dir, pattern = 'txt$')
+)
+counts_list_HET <- 
+  intersect(list.files(counts_dir, pattern='HET'), 
+                         list.files(counts_dir, pattern = 'txt$')
+)
+
+#select just WT and KO for now
+counts_list <- c(counts_list_WT, counts_list_HET, counts_list_KO)
+
+#reads in each counts file
+counts_in <- lapply(paste(counts_dir, counts_list, sep = "/"), read.table, header = TRUE)
+#subset just the geneids and counts from each file so that each row is a gene and each column is the counts for a sample
+
+counts_combined <- data.frame(counts_in[[1]][,7])
+for (i in seq.int(2,length(counts_in))){
+  #print(i)
+  current_column <- counts_in[[i]][,7]
+  counts_combined[(i)] <- current_column
+}
+#label rows with gene names
+rows <- counts_in[[1]][,1]
+rownames(counts_combined) = rows
+
+#label columns with names of input files
+cols <- counts_list
+colnames(counts_combined) = cols
+
+```
+
+
+```{r load counts for a2d1-WT, HET, and KO, and add metadata}
+#group samples by experimental groups
+#Genotype: WT HET KO
+#Sex: M F 
+#Litter: 
+genotype <- c(1:length(counts_list))
+sex <- c(1:length(counts_list))
+genotype_sex <- c(1:length(counts_list))
+litter <- c(1:length(counts_list))
+
+for (i in 1:length(counts_list)){
+    genotype[i] <- strsplit(counts_list[i], "_")[[1]][3]
+    sex[i] <- str_sub(strsplit(counts_list[i], "_")[[1]][2], nchar(strsplit(counts_list[i], "_")[[1]][2]), nchar(strsplit(counts_list[i], "_")[[1]][2]))
+    litter[i] <- strsplit(counts_list[i], "_")[[1]][1]
+    genotype_sex[i] <- paste(genotype[i], sex[i])
+}
+
+#make coldata for DESeq2
+coldata <- data.frame(cols)
+coldata$Genotype <- genotype
+coldata$Genotype <- factor(coldata$Genotype, levels = c("WT", "HET", "KO"))
+coldata$Sex <- sex
+coldata$Sex <- factor(coldata$Sex, levels = c("M", "F"))
+coldata$Litter <- litter
+coldata$Litter <- factor(coldata$Litter)
+
+# check that rownames and column names are in the same order
+as.tibble((counts_combined))
+coldata
+```
+```{r}
+# Construct a DESeqDataSet object
+dds <- DESeqDataSetFromMatrix(countData = counts_combined,
+                              colData = coldata,
+                              design = ~ Genotype)
+
+relevel(dds$Genotype, ref="WT")
+```
+
+
+```{r Group-wide differences (LRT) approach}
+# Run DESeq2 using LRT approach to test the hypothesis that there is no difference between groups. Compares the "full model" including Genotype to reduced model (intercept only, assuming no difference between groups)
+dds_lrt <- DESeq(dds, test="LRT", reduced = ~ 1)
+
+resultsNames(dds)
+res_lrt <- results(dds_lrt)
+res_lrt
+```
+
+
+```{r plot initial volcano}
+
+EnhancedVolcano(res_lrt,
+    lab = rownames(res_lrt),
+    x = 'log2FoldChange',
+    y = 'padj',
+    pCutoff = 0.05, 
+    FCcutoff = 0.3219,
+    ylim = c(0, 20), xlim = c(-1,1), 
+    drawConnectors = TRUE)
+
+ggsave("./plots/volcano_lrt.png")
+```
+
+```{r}
+resultsNames(dds_lrt)
+## [1] "Intercept"          "Genotype_HET_vs_WT" "Genotype_KO_vs_WT" 
+
+res_lrt_LFC <- lfcShrink(dds_lrt, coef="Genotype_KO_vs_WT", type="apeglm")
+# noticed any differences to the values in lfcSE compared to res ?
+res_lrt_LFC
+```
+
+```{r}
+# plot volcano for shrunken results (emphasize low count)
+EnhancedVolcano(res_lrt_LFC,
+    lab = rownames(res_lrt_LFC),
+    x = 'log2FoldChange',
+    y = 'padj',
+    pCutoff = 0.05, 
+    FCcutoff = 0.4,
+    ylim = c(0, 20), xlim = c(-1,1), 
+    drawConnectors = TRUE)
+
+ggsave("./plots/volcano_lrt_shrunken.png")
+```
+
+
+```{r filter results w.r.t. p-value and check summary statistics}
+reslrtOrdered <- res_lrt[order(res_lrt$pvalue),]
+summary(res_lrt)
+
+res05 <- results(dds_lrt, alpha=0.05)
+summary(res05)
+sum(res05$padj < .05, na.rm=TRUE)
+```
+
+```{r}
+write.csv(as.data.frame(reslrtOrdered), 
+          file="./tables_lrt/a2d1_LRT_results.csv")
+```
+
+```{r}
+resSig_lrt <- subset(reslrtOrdered, padj < 0.05)
+resSig_lrt
+write.csv(as.data.frame(resSig_lrt), 
+          file="./tables_lrt/a2d1_LRT_results_sig.csv")
+```
+
+```{r}
+png("./plots/MA_plot_lrt_untransformed.png", width=2000, height=2000, res=300)
+  plotMA(res_lrt_LFC)
+dev.off()
+
+png("./plots/MA_plot_lrt_shrunken.png", width=2000, height=2000, res=300)
+  plotMA(res_lrt_LFC)
+dev.off()
+
+```
+
+```{r}
+plotCounts(dds, gene=which.min(res_lrt$padj), intgroup="Genotype")
+
+plotCounts(dds, gene=which.min(res_lrt$padj), intgroup="Genotype", returnData = TRUE)
+```
+
+```{r data transformations}
+# variance stabilizing transformation (unblind to account for known group differences, ideal for PCA/clustering)
+vsd <- vst(dds_lrt, blind=FALSE)
+rld <- rlog(dds_lrt, blind=FALSE)
+ntd <- normTransform(dds_lrt)
+
+saveRDS(dds, file = "deseq_results_LRT_a2d1.rds")
+
+```
+
+
+```{r plot top genes ordered by lowest p value}
+degPlot(dds = dds_lrt, res = res_lrt, n = 15, xs = "Genotype")
+```
+
+
+```{r print session info}
+sessionInfo()
+
+```

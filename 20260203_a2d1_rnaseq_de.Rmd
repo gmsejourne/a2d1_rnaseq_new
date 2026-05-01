@@ -180,10 +180,20 @@ EnhancedVolcano(res,
 
 ggsave("./plots/volcano_untransformed_zoom.png")
 ```
+
+```{r}
+resultsNames(dds)
+## [1] "Intercept"          "Genotype_HET_vs_WT" "Genotype_KO_vs_WT" 
+
+resLFC <- lfcShrink(dds, coef="Genotype_KO_vs_WT", type="apeglm")
+# noticed any differences to the values in lfcSE compared to res ?
+resLFC
+```
+
 ```{r}
 # plot volcano for shrunken results (emphasize low count)
-EnhancedVolcano(res_shrunk,
-    lab = rownames(res_shrunk),
+EnhancedVolcano(resLFC,
+    lab = rownames(resLFC),
     x = 'log2FoldChange',
     y = 'padj',
     pCutoff = 0.05, 
@@ -195,22 +205,13 @@ ggsave("./plots/volcano_shrunken.png")
 ```
 
 
-```{r}
-resultsNames(dds)
-## [1] "Intercept"          "Genotype_HET_vs_WT" "Genotype_KO_vs_WT" 
-
-resLFC <- lfcShrink(dds, coef="Genotype_KO_vs_WT", type="apeglm")
-# noticed any differences to the values in lfcSE compared to res ?
-resLFC
-```
-
 ```{r filter results w.r.t. p-value and check summary statistics}
 resOrdered <- res[order(res$pvalue),]
 summary(res)
 
 res05 <- results(dds, alpha=0.05)
 summary(res05)
-sum(res05$padj < 0.05, na.rm=TRUE)
+sum(res05$padj < -.05, na.rm=TRUE)
 ```
 
 ```{r}
@@ -314,10 +315,13 @@ library(DEGreport)
 degs <- degComps(dds, combs = "Genotype",
                  contrast = list( c("Genotype", "WT", "KO") ))
 names(degs)
-## [1] "Genotype_HET_vs_WT" "Genotype_KO_vs_WT"  "Genotype_WT_vs_KO" 
+## [1] "Genotype_HET_vs_WT" "Genotype_KO_vs_WT"  "Genotype_WT_vs_KO"
+```
 
+
+```{r}
 # get raw (not lfc shrunken) results from KOvWT comparison ([[2]]) as dataframe
-deg(degs[[2]], "raw", "tibble")
+deg(degs[[1]], "raw", "tibble")
 
 # get genes with KOvWT log2FC > 0.3219 (FC > 1.25) and FDR < 0.05
 deg.df <- significants(degs, fc = 0.3219, fdr = 0.05, full = TRUE)
@@ -331,13 +335,18 @@ degPlot(dds = dds, res = res, n = 10, xs = "Genotype")
 
 
 ```{r GO biological process}
-sig_up <- subset(resSig, log2FoldChange > 0)
-sig_down <- subset(resSig, log2FoldChange < 0)
+sig_up <- subset(resSig, log2FoldChange > 0.3219)
+sig_down <- subset(resSig, log2FoldChange < -0.3219)
 
 sig_up_genes <- rownames(sig_up)
+length(sig_up_genes)
 sig_down_genes <- rownames(sig_down)
+length(sig_down_genes)
 sig_diff_genes <- c(sig_up_genes, sig_down_genes)
+```
 
+
+```{r GO biological process}
 # Map SYMBOL → ENTREZ
 mapped <- AnnotationDbi::select(
   org.Mm.eg.db,
@@ -368,7 +377,68 @@ dev.off()
 
 write.csv(go_bp, file = "a2d1_genes_diff_GOBP.csv")
 ```
+```{r GO biological process}
+# Map SYMBOL → ENTREZ
+mapped <- AnnotationDbi::select(
+  org.Mm.eg.db,
+  keys = sig_up_genes,
+  keytype = "SYMBOL",
+  columns = "ENTREZID"
+)
 
+mapped <- mapped[!is.na(mapped$ENTREZID), ]
+
+# Run GO enrichment using ENTREZ
+go_bp <- enrichGO(
+  gene = unique(mapped$ENTREZID),
+  OrgDb = org.Mm.eg.db,
+  keyType = "ENTREZID",
+  ont = "BP",
+  readable = TRUE
+)
+head(go_bp)
+
+library(enrichplot)
+png("./plots/WTvKO_GO_BP.png", width=2000, height=2000, res=300)
+  enrichplot::dotplot(go_bp, showCategory=10)
+dev.off()
+
+
+#save go output
+
+write.csv(go_bp, file = "a2d1_genes_up_GOBP.csv")
+```
+```{r GO biological process}
+# Map SYMBOL → ENTREZ
+mapped <- AnnotationDbi::select(
+  org.Mm.eg.db,
+  keys = sig_down_genes,
+  keytype = "SYMBOL",
+  columns = "ENTREZID"
+)
+
+mapped <- mapped[!is.na(mapped$ENTREZID), ]
+
+# Run GO enrichment using ENTREZ
+go_bp <- enrichGO(
+  gene = unique(mapped$ENTREZID),
+  OrgDb = org.Mm.eg.db,
+  keyType = "ENTREZID",
+  ont = "BP",
+  readable = TRUE
+)
+head(go_bp)
+
+library(enrichplot)
+png("./plots/WTvKO_GO_BP.png", width=2000, height=2000, res=300)
+  enrichplot::dotplot(go_bp, showCategory=10)
+dev.off()
+
+
+#save go output
+
+write.csv(go_bp, file = "a2d1_genes_down_GOBP.csv")
+```
 
 ```{r GO molecular function}
 
@@ -397,10 +467,73 @@ png("./plots/WTvKO_GO_MF.png", width=2000, height=2000, res=300)
   enrichplot::dotplot(go_mf, showCategory=10)
 dev.off()
 
-
 #save go output
 
 write.csv(go_mf, file = "a2d1_genes_diff_GOMF.csv")
+```
+
+```{r GO molecular function}
+
+# Map SYMBOL → ENTREZ
+mapped <- AnnotationDbi::select(
+  org.Mm.eg.db,
+  keys = sig_up_genes,
+  keytype = "SYMBOL",
+  columns = "ENTREZID"
+)
+
+mapped <- mapped[!is.na(mapped$ENTREZID), ]
+
+# Run GO enrichment using ENTREZ
+go_mf <- enrichGO(
+  gene = unique(mapped$ENTREZID),
+  OrgDb = org.Mm.eg.db,
+  keyType = "ENTREZID",
+  ont = "MF",
+  readable = TRUE
+)
+head(go_mf)
+
+library(enrichplot)
+png("./plots/WTvKO_GO_MF.png", width=2000, height=2000, res=300)
+  enrichplot::dotplot(go_mf, showCategory=10)
+dev.off()
+
+#save go output
+
+write.csv(go_mf, file = "a2d1_genes_up_GOMF.csv")
+```
+
+```{r GO molecular function}
+
+# Map SYMBOL → ENTREZ
+mapped <- AnnotationDbi::select(
+  org.Mm.eg.db,
+  keys = sig_down_genes,
+  keytype = "SYMBOL",
+  columns = "ENTREZID"
+)
+
+mapped <- mapped[!is.na(mapped$ENTREZID), ]
+
+# Run GO enrichment using ENTREZ
+go_mf <- enrichGO(
+  gene = unique(mapped$ENTREZID),
+  OrgDb = org.Mm.eg.db,
+  keyType = "ENTREZID",
+  ont = "MF",
+  readable = TRUE
+)
+head(go_mf)
+
+library(enrichplot)
+png("./plots/WTvKO_GO_MF.png", width=2000, height=2000, res=300)
+  enrichplot::dotplot(go_mf, showCategory=10)
+dev.off()
+
+#save go output
+
+write.csv(go_mf, file = "a2d1_genes_down_GOMF.csv")
 ```
 
 ```{r print session info}

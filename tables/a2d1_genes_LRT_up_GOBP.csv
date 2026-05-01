@@ -1,0 +1,28 @@
+"","ID","Description","GeneRatio","BgRatio","pvalue","p.adjust","qvalue","geneID","Count"
+"GO:0009205","GO:0009205","purine ribonucleoside triphosphate metabolic process","6/51","22/1750",2.3753083624003e-05,0.0125769676941969,0.0120197018061553,"Ndufs4/Ndufb5/Ndufv2/Sdhd/Nme1/Itpa",6
+"GO:0009199","GO:0009199","ribonucleoside triphosphate metabolic process","6/51","23/1750",3.14256851874382e-05,0.0125769676941969,0.0120197018061553,"Ndufs4/Ndufb5/Ndufv2/Sdhd/Nme1/Itpa",6
+"GO:0009144","GO:0009144","purine nucleoside triphosphate metabolic process","6/51","24/1750",4.09741077597556e-05,0.0125769676941969,0.0120197018061553,"Ndufs4/Ndufb5/Ndufv2/Sdhd/Nme1/Itpa",6
+"GO:0009141","GO:0009141","nucleoside triphosphate metabolic process","6/51","25/1750",5.27208163118557e-05,0.0125769676941969,0.0120197018061553,"Ndufs4/Ndufb5/Ndufv2/Sdhd/Nme1/Itpa",6
+"GO:0009206","GO:0009206","purine ribonucleoside triphosphate biosynthetic process","5/51","16/1750",5.91052409131618e-05,0.0125769676941969,0.0120197018061553,"Ndufs4/Ndufb5/Ndufv2/Sdhd/Nme1",5
+"GO:0009145","GO:0009145","purine nucleoside triphosphate biosynthetic process","5/51","17/1750",8.18965338226772e-05,0.0125769676941969,0.0120197018061553,"Ndufs4/Ndufb5/Ndufv2/Sdhd/Nme1",5
+"GO:0009201","GO:0009201","ribonucleoside triphosphate biosynthetic process","5/51","17/1750",8.18965338226772e-05,0.0125769676941969,0.0120197018061553,"Ndufs4/Ndufb5/Ndufv2/Sdhd/Nme1",5
+"GO:0009142","GO:0009142","nucleoside triphosphate biosynthetic process","5/51","18/1750",0.000110909427841585,0.014903454366213,0.0142431054701825,"Ndufs4/Ndufb5/Ndufv2/Sdhd/Nme1",5
+"GO:0015980","GO:0015980","energy derivation by oxidation of organic compounds","8/51","58/1750",0.000186392964600346,0.0211395002532122,0.0202028418576599,"Ndufs4/Mdh1/Ndufb5/Ndufv2/Sdhd/Ppp1cc/Ppp1cb/Chchd2",8
+"GO:0002181","GO:0002181","cytoplasmic translation","7/51","44/1750",0.00019664651398337,0.0211395002532122,0.0202028418576599,"Cnbp/Rpl7/Rpl18a/Rpsa/Rpl6/Rps4x/Rpl12",7
+"GO:0006470","GO:0006470","protein dephosphorylation","6/51","35/1750",0.000386371258220246,0.0377590093260695,0.0360859663179866,"Calm2/Ptp4a1/Ptp4a2/Ppp1cc/Ppp1cb/Ppia",6
+"GO:0015986","GO:0015986","proton motive force-driven ATP synthesis","4/51","14/1750",0.000516892041996987,0.040633854700996,0.038833431763204,"Ndufs4/Ndufb5/Ndufv2/Sdhd",4
+"GO:0042776","GO:0042776","proton motive force-driven mitochondrial ATP synthesis","4/51","14/1750",0.000516892041996987,0.040633854700996,0.038833431763204,"Ndufs4/Ndufb5/Ndufv2/Sdhd",4
+"GO:0009060","GO:0009060","aerobic respiration","6/51","37/1750",0.000529185084478088,0.040633854700996,0.038833431763204,"Ndufs4/Mdh1/Ndufb5/Ndufv2/Sdhd/Chchd2",6
+"GO:0006163","GO:0006163","purine nucleotide metabolic process","7/51","53/1750",0.000646370597411597,0.0433677161514893,0.0414461600625249,"Ndufs4/Mdh1/Ndufb5/Ndufv2/Sdhd/Nme1/Itpa",7
+"GO:0006754","GO:0006754","ATP biosynthetic process","4/51","15/1750",0.000689745164930703,0.0433677161514893,0.0414461600625249,"Ndufs4/Ndufb5/Ndufv2/Sdhd",4
+"GO:0009152","GO:0009152","purine ribonucleotide biosynthetic process","5/51","26/1750",0.000713260369676326,0.0433677161514893,0.0414461600625249,"Ndufs4/Ndufb5/Ndufv2/Sdhd/Nme1",5
+"GO:0072521","GO:0072521","purine-containing compound metabolic process","7/51","54/1750",0.000726157107652845,0.0433677161514893,0.0414461600625249,"Ndufs4/Mdh1/Ndufb5/Ndufv2/Sdhd/Nme1/Itpa",7
+"GO:0045333","GO:0045333","cellular respiration","6/51","40/1750",0.000817052350382114,0.045847251824436,0.0438158313641611,"Ndufs4/Mdh1/Ndufb5/Ndufv2/Sdhd/Chchd2",6
+"GO:0009117","GO:0009117","nucleotide metabolic process","7/51","56/1750",0.000909177752099671,0.045847251824436,0.0438158313641611,"Ndufs4/Mdh1/Ndufb5/Ndufv2/Sdhd/Nme1/Itpa",7
+"GO:0006753","GO:0006753","nucleoside phosphate metabolic process","7/51","57/1750",0.00101345720130537,0.045847251824436,0.0438158313641611,"Ndufs4/Mdh1/Ndufb5/Ndufv2/Sdhd/Nme1/Itpa",7
+"GO:0006164","GO:0006164","purine nucleotide biosynthetic process","5/51","28/1750",0.00101954896272637,0.045847251824436,0.0438158313641611,"Ndufs4/Ndufb5/Ndufv2/Sdhd/Nme1",5
+"GO:0009260","GO:0009260","ribonucleotide biosynthetic process","5/51","28/1750",0.00101954896272637,0.045847251824436,0.0438158313641611,"Ndufs4/Ndufb5/Ndufv2/Sdhd/Nme1",5
+"GO:0006091","GO:0006091","generation of precursor metabolites and energy","8/51","74/1750",0.0010235665523595,0.045847251824436,0.0438158313641611,"Ndufs4/Mdh1/Ndufb5/Ndufv2/Sdhd/Ppp1cc/Ppp1cb/Chchd2",8
+"GO:0046034","GO:0046034","ATP metabolic process","4/51","17/1750",0.00115166983881775,0.0479774882225802,0.0458516802988869,"Ndufs4/Ndufb5/Ndufv2/Sdhd",4
+"GO:0046390","GO:0046390","ribose phosphate biosynthetic process","5/51","29/1750",0.0012050159832648,0.0479774882225802,0.0458516802988869,"Ndufs4/Ndufb5/Ndufv2/Sdhd/Nme1",5
+"GO:0072522","GO:0072522","purine-containing compound biosynthetic process","5/51","29/1750",0.0012050159832648,0.0479774882225802,0.0458516802988869,"Ndufs4/Ndufb5/Ndufv2/Sdhd/Nme1",5

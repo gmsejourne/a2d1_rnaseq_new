@@ -1,0 +1,222 @@
+---
+title: "20260430_a2d1_rnaseq_GOanalysis"
+author: "G Sejourne"
+date: "2026-04-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(clusterProfiler)
+library(biomaRt)
+library(org.Mm.eg.db)
+library(enrichplot)
+library(fgsea)
+library(msigdbr)
+library(VennDetail)
+library(VennDiagram)
+library(EnhancedVolcano)
+library(apeglm)
+library(readxl)
+library(gplots)
+library(pheatmap)
+library(viridis)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+
+```
+
+## GO analysis for bulk RNA sequencing
+
+This code is for performing Gene Ontology analysis given lists of differentially expressed genes from likelihood ratio test (LRT) of bulk RNA sequencing. 
+
+```{r}
+plots_dir <- "plots_lrt"
+
+if (!dir.exists(plots_dir)) {
+  dir.create(plots_dir)
+} else {
+  print("Directory already exists!")
+}
+
+tables_dir <- "tables_lrt"
+
+if (!dir.exists(tables_dir)) {
+  dir.create(tables_dir)
+} else {
+  print("Directory already exists!")
+}
+```
+
+```{r read in data}
+res <- read.csv("./tables_lrt/a2d1_LRT_results_sig.csv")
+resSig <- res[order(res$padj), ][1:336, ]
+#resSig <- subset(resSig, log2FoldChange < -log(1.25, 2) | log2FoldChange > log(1.25, 2))
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r GO biological process}
+sig_up <- subset(resSig, log2FoldChange > 0)
+sig_down <- subset(resSig, log2FoldChange < 0)
+
+sig_up_genes <- sig_up$X
+length(sig_up_genes)
+sig_down_genes <- sig_down$X
+
+length(sig_down_genes)
+sig_diff_genes <- c(sig_up_genes, sig_down_genes)
+```
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r GO biological process}
+sig_up <- subset(resSig, log2FoldChange > 0)
+sig_down <- subset(resSig, log2FoldChange < 0)
+
+sig_up_genes <- sig_up$X
+length(sig_up_genes)
+sig_down_genes <- sig_down$X
+
+length(sig_down_genes)
+sig_diff_genes <- c(sig_up_genes, sig_down_genes)
+```
+
+
+```{r GO biological process for differentially expressed (up + down)}
+# Run GO enrichment using SYMBOL
+go_bp <- enrichGO(
+  gene = sig_diff_genes,
+  OrgDb = org.Mm.eg.db,
+  keyType = "SYMBOL",
+  universe = res$X,
+  ont = "BP",
+  readable = TRUE
+)
+head(go_bp)
+
+library(enrichplot)
+png("./plots_lrt/LRT_GO_BP.png", width=2000, height=2000, res=300)
+  enrichplot::dotplot(go_bp, showCategory=15)
+dev.off()
+
+
+#save go output
+
+write.csv(go_bp, file = "./tables_lrt/a2d1_genes_LRT_diff_GOBP.csv")
+```
+
+```{r GO biological process for upregulated genes}
+# Run GO enrichment using SYMBOL
+go_bp_up <- enrichGO(
+  gene = sig_up_genes,
+  OrgDb = org.Mm.eg.db,
+  keyType = "SYMBOL",
+  universe = res$X,
+  ont = "BP",
+  readable = TRUE
+)
+head(go_bp_up)
+
+library(enrichplot)
+png("./plots/WTvKO_LRT_GO_BP_UP.png", width=2000, height=2000, res=300)
+  enrichplot::dotplot(go_bp, showCategory=10)
+dev.off()
+
+
+#save go output
+
+write.csv(go_bp_up, file = "./tables/a2d1_genes_LRT_up_GOBP.csv")
+```
+
+
+```{r GO biological process for downregulated genes}
+# Run GO enrichment using SYMBOL
+go_bp_down <- enrichGO(
+  gene = sig_down_genes,
+  OrgDb = org.Mm.eg.db,
+  keyType = "SYMBOL",
+  universe = res$X,
+  ont = "BP",
+  readable = TRUE
+)
+head(go_bp_down)
+
+library(enrichplot)
+png("./plots/WTvKO_GO_BP_DOWN.png", width=2000, height=2000, res=300)
+  enrichplot::dotplot(go_bp, showCategory=10)
+dev.off()
+
+
+#save go output
+
+write.csv(go_bp_down, file = "./tables/a2d1_genes_down_GOBP.csv")
+```
+
+```{r}
+#heatmap settings
+myheatcol <- grDevices::colorRampPalette(c("lightblue","white", "orange"))(256)
+
+dds_lrt <- readRDS("deseq_results_LRT_a2d1.rds")
+vsd_lrt <- vst(dds_lrt, blind=FALSE)
+
+df <- as.data.frame(colData(dds_lrt)) 
+df <- df %>% arrange(Genotype)
+
+# select nitrogen compound metabolic process genes
+metab <- strsplit(go_bp_up[go_bp_up$Description == "nitrogen compound metabolic process",]$geneID, "/")[[1]]
+
+toPlot_metab <- vsd[rownames(vsd_lrt) %in% metab,] 
+toPlot_metab <- toPlot_metab[,rownames(df)]
+
+
+#set quantile break points <https://slowkow.com/notes/pheatmap-tutorial/>
+quantile_breaks <- function(xs, n = 100) {
+  breaks <- quantile(xs, probs = seq(0, 1, length.out = n))
+  breaks[!duplicated(breaks)]
+}
+toPlot_metab_breaks <- quantile_breaks(assay(toPlot_metab)[,1], n = 101)
+
+mt <- toPlot_metab[rownames(toPlot_metab) %in% sig_diff_genes,]
+# Labels to plot
+    labels <- rownames(mt) 
+
+    # Open a PNG device with a transparent background
+ppi <- 300
+png(file = "./plots_lrt/heatmap_metab_by_sample.png", width = 6*ppi, height = 6*ppi, res = ppi, bg = "transparent")
+
+heatmap_metab <- pheatmap(assay(mt), 
+                          cluster_rows=TRUE, 
+                          cluster_cols=FALSE,
+                          show_colnames = FALSE,
+                          #show_rownames = FALSE,
+                          annotation_col=df[c(2)], 
+                          scale = "row", 
+                          fontsize_row = 10, 
+                          fontsize_col = 10, 
+                          color = myheatcol,
+                          #breaks = toPlot_metab_breaks, 
+                          angle_col = 315, 
+                          main = "Metabolic process genes", 
+                          cellheight = 10, cellwidth = 10,
+                          labels_row = labels, 
+                          #cutree_rows = 2,
+                          gaps_col = c(8, 16)
+                          )
+
+dev.off()
+heatmap_metab
+
+```
+
+```{r print session info}
+sessionInfo()
+```
